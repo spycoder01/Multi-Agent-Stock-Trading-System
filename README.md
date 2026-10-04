@@ -4,8 +4,6 @@ An LLM-powered multi-agent system for stock market analysis and trading recommen
 
 The V1 system uses two specialized AI agents: a **Financial Analyst Agent** that retrieves and analyzes live market information, and a **Trader Agent** that evaluates the analysis and generates a **BUY, SELL, or HOLD** recommendation.
 
-> **Note:** This project provides AI-generated analysis and recommendations for educational and research purposes. It is not financial advice and does not execute real trades.
-
 ---
 
 ## Architecture
