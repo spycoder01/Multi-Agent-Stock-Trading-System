@@ -1,8 +1,10 @@
 import os
+
 from dotenv import load_dotenv
 from crewai import Agent, LLM
 
 from tools.stock_tool import get_stock_data
+
 
 load_dotenv()
 
@@ -14,24 +16,36 @@ gemini_llm = LLM(
 )
 
 
-analyst_agent = Agent(
-    role="Financial Market Analyst",
+def create_analyst_agent(rag_tool=None):
 
-    goal=(
-        "Analyze stock market data and provide a clear, "
-        "fact-based assessment of the stock's current market condition."
-    ),
+    tools = [get_stock_data]
 
-    backstory=(
-        "You are an experienced financial market analyst. "
-        "You analyze market data carefully, identify trends and "
-        "important signals, and provide concise insights that can "
-        "help another agent make a trading decision."
-    ),
+    if rag_tool:
+        tools.append(rag_tool)
 
-    tools=[get_stock_data],
+    analyst_agent = Agent(
+        role="Financial Market Analyst",
 
-    llm=gemini_llm,
+        goal=(
+            "Analyze the stock using available market data and, "
+            "when available, company financial information."
+        ),
 
-    verbose=True
-)
+        backstory=(
+            "You are an experienced financial market analyst. "
+            "You analyze market data carefully and identify important "
+            "signals, trends, risks, and opportunities. "
+            "When a company financial document is available, "
+            "use it to supplement the market analysis. "
+            "If no financial document is available, rely only on "
+            "the available market data."
+        ),
+
+        tools=tools,
+
+        llm=gemini_llm,
+
+        verbose=True
+    )
+
+    return analyst_agent
