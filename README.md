@@ -1,137 +1,212 @@
-# Multi-AI Agent Trader
+# Multi-Agent Stock Trading System
 
-An LLM-powered multi-agent system for stock market analysis and trading recommendations using **CrewAI, Google Gemini, and Yahoo Finance**.
+An AI-powered stock analysis system that combines market data from Yahoo Finance with financial document question answering using Retrieval-Augmented Generation (RAG). Built with CrewAI and Gemini, the system analyses a stock and generates a BUY, SELL, or HOLD recommendation.
 
-The V1 system uses two specialized AI agents: a **Financial Analyst Agent** that retrieves and analyzes live market information, and a **Trader Agent** that evaluates the analysis and generates a **BUY, SELL, or HOLD** recommendation.
+**Current workflow:** Market Research → Financial Analysis → Trading Recommendation
 
----
+**Planned enhancement:** Add a Risk/Validator Agent to independently review the recommendation before presenting the final result.
 
-## Architecture
+## Overview
 
-```text
-                         User
-                           │
-                           │ Stock Symbol
-                           ▼
-                  ┌─────────────────┐
-                  │  Analyst Agent  │
-                  │                 │
-                  │   Gemini LLM    │
-                  └────────┬────────┘
-                           │
-                           │ Uses Tool
-                           ▼
-                  ┌─────────────────┐
-                  │ Stock Research  │
-                  │      Tool       │
-                  └────────┬────────┘
-                           │
-                           ▼
-                    Yahoo Finance
-                           │
-                           ▼
-                     Market Data
-                           │
-                           ▼
-                  Analyst's Report
-                           │
-                           ▼
-                  ┌─────────────────┐
-                  │   Trader Agent  │
-                  │                 │
-                  │   Gemini LLM    │
-                  └────────┬────────┘
-                           │
-                           ▼
-                    BUY / SELL / HOLD
-```
+This project uses a multi-agent architecture to support stock analysis by combining two information sources:
 
----
+- **Market data:** Retrieves stock price information, daily price movements, trading volume, market capitalization, and the 52-week price range using Yahoo Finance.
+- **Financial documents:** Optionally retrieves relevant information from company financial reports using a hybrid RAG pipeline.
+- **AI-powered analysis:** Uses a Financial Market Analyst to interpret the available evidence and a Strategic Stock Trader to generate a trading recommendation.
+- **Risk validation — planned:** A dedicated Risk/Validator Agent will review the recommendation, assess potential risks, and check whether the decision is supported by the available evidence.
 
-## How It Works
-
-The system follows a sequential multi-agent workflow:
-
-### 1. User Input
-
-The user provides a stock ticker such as:
-
-```text
-AAPL
-```
-
-or an Indian stock:
-
-```text
-RELIANCE.NS
-```
-
-### 2. Analyst Agent
-
-The Financial Analyst Agent uses a custom Yahoo Finance tool to retrieve available market information, including:
-
-* Current price
-* Previous closing price
-* Daily price change
-* Trading volume
-* Market capitalization
-* 52-week high
-* 52-week low
-
-Gemini then analyzes the retrieved information and produces a concise market assessment.
-
-### 3. Trader Agent
-
-The Trader Agent receives the Analyst Agent's output and evaluates:
-
-* Current market condition
-* Price movement
-* Market trend
-* Positive signals
-* Potential risks
-* Potential opportunities
-
-It then generates a final:
-
-```text
-BUY
-SELL
-or
-HOLD
-```
-
-recommendation with supporting reasoning.
-
----
+The project currently generates research-based recommendations; it does not execute trades through a brokerage account.
 
 ## Key Features
 
-* **Multi-Agent Architecture** — Separates market analysis and trading decision-making into specialized agents.
-* **Real-Time Market Data** — Retrieves stock information through Yahoo Finance.
-* **LLM-Powered Analysis** — Uses Google Gemini for financial reasoning and interpretation.
-* **Sequential Agent Workflow** — Analyst output is passed to the Trader Agent for final evaluation.
-* **Multiple Market Support** — Supports ticker formats available through Yahoo Finance, including US and Indian stocks.
-* **Tool-Enabled Agent** — The Analyst Agent can interact with an external data source through a custom CrewAI tool.
+- **Multi-agent orchestration:** Uses CrewAI to coordinate specialised agents and sequential tasks.
+- **Market data integration:** Retrieves stock information through Yahoo Finance using `yfinance`.
+- **Optional Financial RAG:** Supports querying financial information from a user-provided PDF.
+- **Hybrid information retrieval:** Combines FAISS semantic search with BM25 keyword-based retrieval.
+- **CrossEncoder reranking:** Reranks retrieved document chunks based on query relevance.
+- **Context-grounded responses:** Uses Gemini to answer financial document questions using retrieved context.
+- **Flexible workflow:** Runs with market data alone or with market data supplemented by a financial report.
+- **Risk/Validator Agent — planned:** Will provide an additional review stage before the final recommendation.
 
----
+## System Architecture
 
-## Tech Stack
+### Current Workflow
 
-| Technology        | Purpose                         |
-| ----------------- | ------------------------------- |
-| **Python 3.12**   | Core programming language       |
-| **CrewAI**        | Multi-agent orchestration       |
-| **Google Gemini** | Large Language Model            |
-| **yfinance**      | Stock market data               |
-| **python-dotenv** | Environment variable management |
-| **Git & GitHub**  | Version control                 |
+```text
+User Input (Stock Ticker + Optional Financial PDF)
+                         |
+                         v
+                  Create Crew (CrewAI)
+                         |
+             +-----------+-----------+
+             |                       |
+             v                       v
+      Yahoo Finance Tool      Financial RAG (Optional)
+             |                       |
+             |                PDF Text Extraction
+             |                       |
+             |                 Text Chunking
+             |                       |
+             |              FAISS + BM25 Retrieval
+             |                       |
+             |                CrossEncoder Reranking
+             |                       |
+             |                  Gemini Answer
+             |                       |
+             +-----------+-----------+
+                         |
+                         v
+              Financial Market Analyst
+                         |
+                         v
+               Strategic Stock Trader
+                         |
+                         v
+              BUY / SELL / HOLD
+                         |
+                         v
+                 Final Output
+```
 
----
+### Planned Workflow — Risk/Validator Agent
+
+```text
+Strategic Stock Trader
+          |
+          v
+   Risk/Validator Agent
+          |
+          v
+ Review Recommendation
+          |
+     +----+----+
+     |         |
+     v         v
+  Valid     Issues Found
+     |         |
+     v         v
+Final Output  Flag for Review
+```
+
+**Note:** The current implementation includes the Analyst and Trader agents. The Risk/Validator Agent is planned and will be integrated after its implementation and testing.
+
+
+## Detailed Workflow
+
+### 1. User Input
+
+The application starts from `main.py` and requests:
+
+- A stock ticker, such as `AAPL` or `BMW.DE`.
+- An optional path to a company financial report in PDF format.
+
+If no PDF is provided, the application runs without Financial RAG. If a PDF is supplied, the application attempts to initialise the document retrieval pipeline.
+
+### 2. Market Research
+
+The custom Stock Research Tool uses `yfinance` to retrieve available information for the selected stock, including:
+
+- Current price
+- Previous closing price
+- Daily price change and percentage change
+- Trading volume
+- Market capitalization
+- 52-week high and low
+
+The retrieved information is formatted for the Analyst Agent to interpret. Data availability depends on Yahoo Finance and the selected ticker.
+
+### 3. Financial Document RAG — Optional
+
+When a financial PDF is supplied, the application makes the Financial Document Research Tool available to the Analyst Agent.
+
+The RAG pipeline follows these steps:
+
+1. **Document loading:** `PyPDFLoader` extracts text and page metadata from the PDF.
+2. **Text splitting:** `RecursiveCharacterTextSplitter` splits the document into chunks of 1,000 characters with 200 characters of overlap.
+3. **Embedding generation:** `sentence-transformers/all-MiniLM-L6-v2` generates embeddings for semantic retrieval.
+4. **Hybrid retrieval:** FAISS retrieves up to 15 semantic candidates, while BM25 retrieves up to 15 keyword-based candidates.
+5. **Candidate merging:** The retrieved candidates are combined and duplicate text chunks are removed.
+6. **Reranking:** `cross-encoder/ms-marco-MiniLM-L-6-v2` scores the query against the candidates and ranks them by relevance.
+7. **Context selection:** The top three chunks are selected for answer generation.
+8. **Answer generation:** Gemini receives the question and retrieved context and is instructed to answer from that context.
+
+This pipeline allows the Analyst Agent to query relevant financial information from a supplied report without manually reading the entire document for every question.
+
+### 4. Financial Market Analyst
+
+The Analyst Agent uses Gemini and has access to the Stock Research Tool and, when enabled, the Financial Document Research Tool.
+
+Its responsibilities include:
+
+- Interpreting the available market data.
+- Examining price movements and trading activity.
+- Identifying relevant financial information from the supplied report.
+- Summarising potential opportunities, risks, and uncertainties.
+- Preparing an analysis for the Trader Agent.
+
+The Analyst produces the analysis but does not make the final BUY, SELL, or HOLD recommendation.
+
+### 5. Strategic Stock Trader
+
+The Trader Agent receives the Analyst's output through the sequential CrewAI workflow.
+
+It evaluates the available findings and generates a BUY, SELL, or HOLD recommendation with supporting reasoning.
+
+The Trader Agent is responsible for the final recommendation in the current implementation. It does not independently call the market-data or Financial RAG tools.
+
+### 6. Risk/Validator Agent — Planned
+
+A dedicated Risk/Validator Agent will be added as a separate stage after the Trader Agent.
+
+Its intended responsibilities are to:
+
+- Review the proposed recommendation and its supporting evidence.
+- Identify conflicting signals or material risks.
+- Flag missing, unreliable, or insufficient evidence.
+- Check that the reasoning supports the proposed recommendation.
+- Return a validation result or flag the recommendation for further review.
+
+This agent is planned and is **not yet part of the current executable workflow**. Its implementation, validation rules, and final output format remain future work.
+
+### 7. Final Output
+
+In the current version, the application prints the Trader Agent's recommendation and reasoning in the terminal.
+
+After the Risk/Validator Agent is implemented, the intended output will include the validation result before the recommendation is presented as reviewed.
+
+## Financial RAG Retrieval Strategy
+
+The project uses hybrid retrieval to improve the relevance of financial information retrieved from a report.
+
+| Component | Role |
+|---|---|
+| FAISS | Semantic similarity search over document embeddings |
+| BM25 | Keyword-based document retrieval |
+| Candidate merging | Combines results and removes duplicate text chunks |
+| CrossEncoder | Reranks candidates according to query-document relevance |
+| Gemini | Generates an answer using the retrieved context |
+
+FAISS and BM25 retrieve candidate chunks using different methods. The CrossEncoder then reranks those candidates before the most relevant chunks are passed to Gemini.
+
+## Technology Stack
+
+| Category | Technologies |
+|---|---|
+| Language | Python |
+| Multi-agent framework | CrewAI |
+| LLM | Google Gemini |
+| Market data | Yahoo Finance, `yfinance` |
+| RAG framework and document processing | LangChain, PyPDF |
+| Vector retrieval | FAISS |
+| Keyword retrieval | BM25, `rank-bm25` |
+| Embeddings | Sentence Transformers, `all-MiniLM-L6-v2` |
+| Reranking | CrossEncoder, `ms-marco-MiniLM-L-6-v2` |
+| Configuration | `python-dotenv` |
 
 ## Project Structure
 
 ```text
-Multi-AI-Agent-Trader/
+Multi-Agent-Stock-Trading-System/
 │
 ├── agents/
 │   ├── analyst_agent.py
@@ -142,75 +217,59 @@ Multi-AI-Agent-Trader/
 │   └── trading_task.py
 │
 ├── tools/
-│   └── stock_tool.py
+│   ├── stock_tool.py
+│   └── create_rag_tool.py
+│
+├── rag/
+│   ├── document_loader.py
+│   ├── hybrid_retriever.py
+│   └── rag_pipeline.py
+│
+├── documents/
+│   └── (local financial PDFs)
 │
 ├── crew.py
 ├── main.py
+├── test_rag.py
 ├── requirements.txt
-├── .env
-└── .gitignore
+├── .gitignore
+└── README.md
 ```
 
-### `agents/`
+The `documents/` directory is intended for local financial PDFs and should not contain committed reports unless you have the right to redistribute them. The directory and its PDFs may not appear in a fresh clone.
 
-Contains the specialized AI agents.
+## Installation and Setup
 
-* `analyst_agent.py` — Defines the Financial Market Analyst.
-* `trader_agent.py` — Defines the Strategic Stock Trader.
+### Prerequisites
 
-### `tasks/`
+- Python 3.12
+- A Google Gemini API key
+- Internet access for market-data retrieval, Gemini API calls, and downloading model files when needed
 
-Defines the responsibilities assigned to each agent.
-
-* `analysis_task.py` — Task for analyzing market information.
-* `trading_task.py` — Task for generating the final trading recommendation.
-
-### `tools/`
-
-Contains external tools used by the agents.
-
-* `stock_tool.py` — Retrieves stock market information using Yahoo Finance.
-
-### `crew.py`
-
-Initializes the CrewAI crew and defines the sequential execution of the agents and tasks.
-
-### `main.py`
-
-Application entry point that accepts a stock symbol and runs the complete workflow.
-
----
-
-## Installation
-
-### 1. Clone the Repository
+### 1. Clone the repository
 
 ```bash
-git clone https://github.com/your-username/multi-ai-agent-trader.git
-cd multi-ai-agent-trader
+git clone https://github.com/spycoder01/Multi-Agent-Stock-Trading-System.git
+cd Multi-Agent-Stock-Trading-System
 ```
 
-### 2. Create a Virtual Environment
+### 2. Create and activate a virtual environment
+
+**Windows:**
 
 ```bash
 python -m venv venv
-```
-
-Activate it on Windows:
-
-```bash
 venv\Scripts\activate
 ```
 
-### 3. Install Dependencies
+### 3. Install dependencies
 
 ```bash
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
----
-
-## Environment Setup
+### 4. Configure the Gemini API key
 
 Create a `.env` file in the project root:
 
@@ -218,211 +277,53 @@ Create a `.env` file in the project root:
 GEMINI_API_KEY=your_gemini_api_key
 ```
 
-The API key is loaded using `python-dotenv`.
+Replace the placeholder with your own API key. Keep `.env` private and never commit it to GitHub.
 
-**Never commit your `.env` file or expose your API key publicly.**
-
----
-
-## Running the Project
-
-Run the application from the project root:
+### 5. Run the application
 
 ```bash
 python main.py
 ```
 
-Enter a stock ticker when prompted:
+Enter a stock ticker when prompted. To use Financial RAG, provide the path to an existing financial PDF when asked. Otherwise, leave the PDF path blank to run the market-data-only workflow.
 
-```text
-Enter stock symbol (e.g., AAPL or RELIANCE.NS): AAPL
-```
+**Note:** The first RAG run may take additional time because embedding and reranking models may need to be downloaded and loaded.
 
-The system will then execute:
+## Testing
 
-```text
-Stock Symbol
-     ↓
-Analyst Agent
-     ↓
-Yahoo Finance Tool
-     ↓
-Market Data
-     ↓
-Analyst Report
-     ↓
-Trader Agent
-     ↓
-BUY / SELL / HOLD
-```
+The repository includes `test_rag.py` for testing the Financial RAG pipeline separately from the full CrewAI workflow.
 
----
+Recommended checks:
 
-## Example Workflow
+- Test a financial question whose answer is present in the PDF.
+- Test a question whose answer is not present in the PDF.
+- Test a valid ticker with no PDF.
+- Test a valid ticker with a financial PDF.
+- Test an invalid PDF path.
+- Test the system's behaviour when market data or Gemini is unavailable.
 
-For:
-
-```text
-AAPL
-```
-
-the system retrieves market information and passes it to the Analyst Agent.
-
-The Analyst produces observations such as:
-
-```text
-Current price and daily movement
-Trading activity
-52-week price range
-Overall market condition
-Potential risks
-```
-
-The Trader Agent then evaluates the analysis and produces a recommendation such as:
-
-```text
-Recommendation: BUY
-
-Reason:
-The available market indicators show positive short-term
-momentum with favorable price movement, although market
-volatility remains a risk.
-```
-
-*The actual output depends on the latest available market data and the Gemini model's analysis.*
-
----
-
-## Agent Responsibilities
-
-### Financial Market Analyst
-
-**Role:** Market researcher and analyst
-
-**Responsibilities:**
-
-* Retrieve market data using the Yahoo Finance tool
-* Analyze current market conditions
-* Identify relevant market signals
-* Highlight potential risks
-* Provide an objective analysis to the Trader Agent
-
-### Strategic Stock Trader
-
-**Role:** Decision-making agent
-
-**Responsibilities:**
-
-* Evaluate the Analyst Agent's report
-* Consider potential opportunities and risks
-* Make a BUY, SELL, or HOLD recommendation
-* Explain the reasoning behind the decision
-
----
-
-## Why a Multi-Agent Architecture?
-
-Instead of asking a single LLM to perform the entire workflow, the project separates responsibilities between specialized agents.
-
-```text
-Single Agent:
-
-Market Data → Analysis → Decision
-                  │
-                 LLM
-```
-
-The V1 architecture separates these responsibilities:
-
-```text
-Market Data
-     ↓
-Analyst Agent
-     ↓
-Analysis
-     ↓
-Trader Agent
-     ↓
-Decision
-```
-
-This separation makes the system easier to understand, extend, and maintain.
-
----
+A successful standalone RAG test does not guarantee that the complete multi-agent workflow will finish successfully. The full workflow should also be tested with and without a PDF.
 
 ## Current Limitations
 
-V1 is intentionally designed as a lightweight proof of concept.
-
-Current limitations include:
-
-* Uses a limited set of market indicators.
-* Does not perform advanced technical analysis.
-* Does not retrieve financial news.
-* Does not analyze company financial statements.
-* Does not include a financial-document RAG pipeline.
-* Does not execute real trades.
-* Trading recommendations are generated by an LLM and should not be treated as financial advice.
-* No historical backtesting or quantitative performance evaluation is included in V1.
-
----
+- The Risk/Validator Agent is planned but not implemented.
+- The system produces recommendations; it does not execute trades or connect to a brokerage account.
+- Recommendation quality and profitability have not been established through a formal backtest.
+- Market-data availability depends on Yahoo Finance and the selected ticker.
+- Financial RAG answers depend on PDF text extraction, retrieval quality, and the supplied document's coverage.
+- Gemini API quotas, rate limits, or service errors may interrupt analysis.
+- Retrieved financial document context is sent to Gemini for answer generation; the current version is not a fully local LLM pipeline.
+- The current recommendation should not be treated as guaranteed or personalised financial advice.
 
 ## Future Improvements
 
-Planned improvements for future versions include:
-
-### V2 — Expanded Multi-Agent Analysis
-
-Add specialized agents for:
-
-* Technical analysis
-* Fundamental analysis
-* Financial news analysis
-* Risk assessment
-
-### V3 — Financial RAG
-
-Integrate company documents such as:
-
-* Annual reports
-* Earnings reports
-* Financial statements
-* Investor presentations
-
-This would allow the agents to combine real-time market data with company-specific financial information.
-
-### V4 — Interactive Dashboard
-
-Add a Streamlit interface with:
-
-* Stock price charts
-* Market indicators
-* Agent analysis
-* Trading recommendation
-* Risk summary
-
-### V5 — Backtesting & Evaluation
-
-Evaluate recommendations against historical market data using:
-
-* Historical backtesting
-* Strategy returns
-* Maximum drawdown
-* Sharpe ratio
-* Win rate
-
----
+- Implement the Risk/Validator Agent as a separate stage in the CrewAI workflow.
+- Define validation criteria for evidence quality, conflicting signals, and recommendation consistency.
+- Improve handling of failed RAG calls so error messages cannot be mistaken for financial evidence.
+- Add structured outputs for the recommendation and validation result.
+- Evaluate retrieval quality and recommendation performance using documented test cases and historical data.
+- Add a dashboard for viewing market data, retrieved evidence, agent analysis, and final recommendations.
 
 ## Disclaimer
 
-This project is intended for **educational and research purposes only**.
-
-The BUY, SELL, or HOLD recommendations generated by the system are produced by an AI model and should not be considered professional financial advice. The project does not execute real trades or manage financial assets.
-
----
-
-## Author
-
-**Abhisek Gupta**
-
-GitHub: [spycoder01](https://github.com/spycoder01)
+This project is intended for educational and research purposes. Its outputs are AI-generated analyses and recommendations, not guarantees of future stock performance. Always independently verify financial information and consider the risks before making investment decisions.
